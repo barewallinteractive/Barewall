@@ -516,6 +516,29 @@ function App() {
     }
   }
 
+  async function removeMember(member) {
+  if (!isAdmin || member.role === 'admin' || member.id === userId) return;
+
+  const confirmed = window.confirm(
+    `Remove ${member.name} from the active team?\n\nTheir previous tasks and recorded work history will be kept.`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    if (demo) {
+      setMembers(members.filter(m => m.id !== member.id));
+    } else {
+      await deleteDoc(doc(db, 'members', member.id));
+    }
+
+    flash(`${member.name} removed from the active team`);
+  } catch (err) {
+    console.error(err);
+    flash(err?.message || 'Could not remove team member');
+  }
+}
+
   async function doLogin(email, password) {
     const clean = (email || '').trim().toLowerCase();
     if (demo) {
@@ -758,6 +781,7 @@ function App() {
             isAdmin={isAdmin}
             onInvite={() => setShowInvite(true)}
             onCancelInvite={cancelInvitation}
+            onRemoveMember={removeMember}
           />
         )}
         {view === 'Time' && (
@@ -1390,7 +1414,7 @@ function TaskCard({task, members, current, isAdmin, changeTask, addTaskNote}) {
   );
 }
 
-function TeamView({members, invitations = [], deptStats, isAdmin, onInvite, onCancelInvite}) {
+  function TeamView({members, invitations = [], deptStats, isAdmin, onInvite, onCancelInvite, onRemoveMember}) {
   const pendingInvitations = invitations.filter(i => !i.claimed);
 
   return (
@@ -1467,6 +1491,16 @@ function TeamView({members, invitations = [], deptStats, isAdmin, onInvite, onCa
             <div className="member-foot">
               <span>{m.department}</span>
               <strong>{fmt(m.totalSeconds || 0)}</strong>
+
+              {isAdmin && m.role !== 'admin' && (
+                <button
+                  className="delete-btn"
+                  title={`Remove ${m.name}`}
+                  onClick={() => onRemoveMember(m)}
+                >
+                  <Trash2 size={13} /> Remove
+                </button>
+              )}
             </div>
           </div>
         ))}
