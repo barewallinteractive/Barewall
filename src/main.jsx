@@ -157,7 +157,7 @@ function BrandLogo({compact = false}) {
   return (
     <div className={compact ? 'logo-image-wrap compact' : 'logo-image-wrap'}>
       <img
-        src="/LOGO ALONE.png"
+        src={`${import.meta.env.BASE_URL}LOGO ALONE.png`}
         alt="Barewall Interactive logo"
         onError={e => {
           e.currentTarget.style.display = 'none';
