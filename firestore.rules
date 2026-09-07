@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function memberDoc() {
+      return get(/databases/$(database)/documents/members/$(request.auth.uid)).data;
+    }
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/members/$(request.auth.uid)) &&
+        memberDoc().role == 'admin';
+    }
+
+    // Invitations collection (Spark-compatible team onboarding)
+    match /invitations/{invitationId} {
+      // Admins can read all invitations; invited users can read only their own invitation matching their authenticated email
+      allow read: if signedIn() && (
+        isAdmin() ||
+        (request.auth.token.email != null && (
+          resource.data.email == request.auth.token.email ||
+          resource.data.email == request.auth.token.email.lower()
+        ))
+      );
+
+      // Only admins can create invitations; must be for role='member', invited=true, claimed=false
+      allow create: if isAdmin() &&
+        request.resource.data.role == 'member' &&
+        request.resource.data.invited == true &&
+        request.resource.data.claimed == false;
+
+      // Admin can update/cancel; invited user can mark their own invitation claimed
+      allow update: if isAdmin() || (
+        signedIn() &&
+        request.auth.token.email != null &&
+        resource.data.email.lower() == request.auth.token.email.lower() &&
+        resource.data.claimed == false &&
+        request.resource.data.claimed == true &&
+        request.resource.data.claimedBy == request.auth.uid &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.email == resource.data.email
+      );
+
+      // Only admins can delete invitations
+      allow delete: if isAdmin();
+    }
+
+    // Team members collection
+    // The current Spark implementation intentionally stores pending invitations in the `members`
+    // Firestore collection with fields such as invited:true and claimed:false.
+    match /members/{memberId} {
+      allow read: if signedIn();
+
+      // Admins can create pending invitations or member profiles.
+      // An invited user can only create their OWN member profile (memberId == request.auth.uid)
+      // with role == 'member' and matching their authenticated token email.
+      allow create: if signedIn() && (
+        isAdmin() ||
+        (
+          request.auth.uid == memberId &&
+          request.resource.data.role == 'member' &&
+          request.auth.token.email != null &&
+          request.resource.data.email.lower() == request.auth.token.email.lower()
+        )
+      );
+
+      // Updates:
+      // 1. Admins can update any member document.
+      // 2. Members can update their own profile data (cannot elevate role to admin).
+      // 3. Authenticated invited users can safely update ONLY their own matching pending invitation document
+      //    to claimed:true, with claimedBy equal to their authenticated UID and claimedAt set,
+      //    without modifying name, email, department, role, or other invitation fields.
+      allow update: if signedIn() && (
+        isAdmin() ||
+        (
+          request.auth.uid == memberId &&
+          request.resource.data.role == resource.data.role
+        ) ||
+        (
+          resource.data.invited == true &&
+          resource.data.claimed == false &&
+          request.auth.token.email != null &&
+          resource.data.email.lower() == request.auth.token.email.lower() &&
+          request.resource.data.claimed == true &&
+          request.resource.data.claimedBy == request.auth.uid &&
+          request.resource.data.claimedAt != null &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed', 'claimedBy', 'claimedAt'])
+        )
+      );
+
+      // Only admins can delete member profiles or cancel pending invitations
+      allow delete: if isAdmin();
+    }
+
+    // Production tasks
+    match /tasks/{id} {
+      allow read: if signedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (signedIn() && resource.data.assigneeId == request.auth.uid);
+    }
+
+    // Work / time tracking sessions
+    match /sessions/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+  }
+}

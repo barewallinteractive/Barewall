@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "Member": {
+      "title": "Member",
+      "description": "Team member profile within the game studio",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the team member" },
+        "email": { "type": "string", "format": "email", "description": "Work email address" },
+        "department": { "type": "string", "description": "Studio department (3D, Level Design, etc.)" },
+        "role": { "type": "string", "enum": ["admin", "member"], "description": "Access control role" },
+        "totalSeconds": { "type": "number", "description": "Aggregated recorded production seconds" },
+        "avatar": { "type": "string", "description": "Avatar initials or url" },
+        "invited": { "type": "boolean", "description": "Flag indicating member was onboarded via invitation" },
+        "claimed": { "type": "boolean", "description": "Flag indicating invitation profile was activated" }
+      },
+      "required": ["name", "email", "department", "role"]
+    },
+    "Invitation": {
+      "title": "Invitation",
+      "description": "Pending invitation created by an administrator",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Invited member full name" },
+        "email": { "type": "string", "format": "email", "description": "Invited member email address" },
+        "department": { "type": "string", "description": "Assigned studio department" },
+        "role": { "type": "string", "enum": ["member"], "description": "Role to be assigned on claiming" },
+        "invited": { "type": "boolean", "description": "True for active studio invitations" },
+        "claimed": { "type": "boolean", "description": "False when pending, true once claimed" },
+        "invitedBy": { "type": "string", "description": "UID of the inviting administrator" },
+        "claimedBy": { "type": "string", "description": "UID of the claiming member" }
+      },
+      "required": ["name", "email", "department", "role", "invited", "claimed"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Studio task assignment",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Task title" },
+        "description": { "type": "string", "description": "Task description" },
+        "assigneeId": { "type": "string", "description": "Member ID of assignee" },
+        "department": { "type": "string", "description": "Department the task belongs to" },
+        "status": { "type": "string", "enum": ["Not Started", "In Progress", "Completed", "For Review"] },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "due": { "type": "string", "description": "Due date string" }
+      },
+      "required": ["title", "assigneeId", "status", "priority"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "Recorded work session",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Member UID who tracked the session" },
+        "startedAt": { "type": "string", "description": "Start timestamp" },
+        "endedAt": { "type": "string", "description": "End timestamp" },
+        "duration": { "type": "number", "description": "Duration in seconds" }
+      },
+      "required": ["userId", "startedAt"]
+    }
+  },
+  "firestore": {
+    "/members/{uid}": {
+      "schema": "Member",
+      "description": "User member documents indexed by Firebase Auth UID"
+    },
+    "/invitations/{invitationId}": {
+      "schema": "Invitation",
+      "description": "Pending and claimed team member invitations"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Studio production task board items"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Clocked in studio work sessions"
+    }
+  }
+}
